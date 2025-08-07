@@ -305,7 +305,6 @@
         }
       });
 
-      // Try multiple shortening services
       async function tryShortenServices(url) {
         try {
           // Using TinyURL API which doesn't have CORS issues
@@ -417,17 +416,54 @@
       }
 
       function copyToClipboard(text, button) {
-        navigator.clipboard.writeText(text).then(() => {
-          button.textContent = 'Copied!';
-          button.classList.add('bg-purple-700');
-          setTimeout(() => {
-            button.textContent = 'Copy';
-            button.classList.remove('bg-purple-700');
-          }, 2000);
-        }).catch(err => {
-          console.error('Failed to copy:', err);
-          button.textContent = 'Failed';
-        });
+        // Fallback methods for different browsers
+        const copyFallback = (text) => {
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.style.position = 'fixed';  // Prevent scrolling
+          document.body.appendChild(textarea);
+          textarea.select();
+
+          try {
+            const successful = document.execCommand('copy');
+            if (!successful) throw new Error('Copy failed');
+          } catch (err) {
+            console.error('Fallback copy failed:', err);
+            return false;
+          } finally {
+            document.body.removeChild(textarea);
+          }
+          return true;
+        };
+
+        // Try modern Clipboard API first
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(() => {
+            updateButtonState(button, true);
+          }).catch(err => {
+            console.error('Clipboard API failed, trying fallback:', err);
+            const success = copyFallback(text);
+            updateButtonState(button, success);
+          });
+        } else {
+          // Use fallback if Clipboard API not available
+          const success = copyFallback(text);
+          updateButtonState(button, success);
+        }
+      }
+
+      function updateButtonState(button, success) {
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = success ? 'Copied!' : 'Failed';
+        button.classList.toggle('bg-purple-700', success);
+        button.classList.toggle('bg-red-500', !success);
+
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.classList.remove('bg-purple-700', 'bg-red-500');
+          button.disabled = false;
+        }, 2000);
       }
 
       function isValidUrl(url) {
